@@ -10,6 +10,8 @@ interface GameAction {
 }
 
 let gameState: any = {};
+let gameStateId: string = "";
+let gameStateServerTimeEstimate: number = Date.now();
 let unhandledActions: GameAction[] = [];
 let clients: Record<string, WebSocket> = {};
 
@@ -42,9 +44,21 @@ wss.on('connection', (socket: WebSocket) => {
     send(socket, {
         type: 'welcome',
         clientId,
-        gameState,
-        unhandledActions,
         clients: Object.keys(clients),
+    });
+
+    for (const action of unhandledActions) {
+        send(socket, {
+            type: 'playerAction', action
+        });
+    }
+
+    send(socket, {
+        type: 'gameStateUpdate',
+        state: gameState,
+        handledActionIds: [],
+        serverTimeEstimate: gameStateServerTimeEstimate,
+        id: gameStateId
     });
 
     broadcastExcept(socket, { type: 'clientJoined', clientId });
@@ -59,8 +73,11 @@ wss.on('connection', (socket: WebSocket) => {
                 serverTime: Date.now(),
             });
         } else if (data.type === 'gameStateUpdate') {
-            if (data.basedOnId === gameState.id) {
+            console.log(data);
+            if (data.basedOnId === gameStateId) {
                 gameState = data.state;
+                gameStateId = data.id;
+                gameStateServerTimeEstimate = data.serverTimeEstimate;
                 unhandledActions = unhandledActions.filter(
                     (action: GameAction) => !data.handledActionIds.includes(action.id)
                 );
@@ -68,14 +85,14 @@ wss.on('connection', (socket: WebSocket) => {
                     type: 'gameStateUpdate',
                     state: gameState,
                     handledActionIds: data.handledActionIds,
-                    serverTimeEstimate: data.serverTimeEstimate,
-                    id: data.id,
+                    serverTimeEstimate: gameStateServerTimeEstimate,
+                    id: gameStateId,
                     basedOnId: data.basedOnId
                 });
             }
         } else if (data.type === 'playerAction') {
-            unhandledActions.push(data);
-            broadcast({ type: 'playerAction', action: data });
+            unhandledActions.push(data.action);
+            broadcast({ type: 'playerAction', action: data.action });
         }
     });
 
