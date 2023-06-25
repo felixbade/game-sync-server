@@ -37,6 +37,8 @@ wss.on('connection', (socket: WebSocket) => {
     const clientId = uuidv4();
     clients[clientId] = socket;
 
+    console.log(`Client ${clientId} connected`); // Log when a client connects
+
     send(socket, {
         type: 'welcome',
         clientId,
@@ -62,7 +64,14 @@ wss.on('connection', (socket: WebSocket) => {
                 unhandledActions = unhandledActions.filter(
                     (action: GameAction) => !data.handledActionIds.includes(action.id)
                 );
-                broadcast({ type: 'gameStateUpdate', state: gameState });
+                broadcast({
+                    type: 'gameStateUpdate',
+                    state: gameState,
+                    handledActionIds: data.handledActionIds,
+                    serverTimeEstimate: data.serverTimeEstimate,
+                    id: data.id,
+                    basedOnId: data.basedOnId
+                });
             }
         } else if (data.type === 'playerAction') {
             unhandledActions.push(data);
@@ -73,6 +82,7 @@ wss.on('connection', (socket: WebSocket) => {
     socket.on('close', () => {
         delete clients[clientId];
         broadcast({ type: 'clientLeft', clientId });
+        console.log(`Client ${clientId} disconnected`); // Log when a client disconnects
     });
 });
 
